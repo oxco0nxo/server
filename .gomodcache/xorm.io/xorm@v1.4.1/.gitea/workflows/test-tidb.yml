@@ -1,0 +1,28 @@
+name: test tidb
+on: 
+  push:
+    branches:
+      - main
+      - v1
+  pull_request:
+
+jobs:
+  test-tidb:
+    name: test tidb
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: test tidb
+        env:
+          TEST_TIDB_HOST: "tidb:4000"
+          TEST_TIDB_DBNAME: xorm_test
+          TEST_TIDB_USERNAME: root
+          TEST_TIDB_PASSWORD:
+        run: make test-tidb
+
+    services:
+      tidb:
+        image: pingcap/tidb:v3.0.3

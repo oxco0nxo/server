@@ -1,0 +1,5 @@
+./cpuid.go
+./detect_x86.go
+./featureid_string.go
+./riscv_isa.go
+./cpuid_amd64.s

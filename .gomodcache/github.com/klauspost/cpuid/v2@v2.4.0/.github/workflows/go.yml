@@ -1,0 +1,65 @@
+name: Go
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        go-version: [1.24.x, 1.25.x, 1.26.x]
+        os: [ubuntu-latest, macos-latest, windows-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Vet
+      run: go vet ./...
+
+    - name: Test
+      run: go test ./...
+
+    - name: Test Noasm
+      run: go test -tags=noasm ./...
+
+    - name: Run cpuid command
+      run: go run cmd/cpuid/main.go
+
+    - name: Run cpuid command noasm
+      run: go run -tags=noasm cmd/cpuid/main.go
+
+  build-special:
+    env:
+      CGO_ENABLED: 0
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: stable
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: fmt
+      run: diff <(gofmt -d .) <(printf "")
+
+    - name: fix
+      run: diff <(go fix -diff ./...) <(printf "")
+    
+    - name: Test 386
+      run: GOOS=linux GOARCH=386 go test -short ./...
+
+    - name: goreleaser deprecation
+      run: curl -sfL https://git.io/goreleaser | VERSION=v2.16.0 sh -s -- check
+      
+    - name: goreleaser snapshot
+      run: curl -sL https://git.io/goreleaser | VERSION=v2.16.0 sh -s -- --snapshot --clean

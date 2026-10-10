@@ -1,0 +1,4 @@
+./cards.go
+./fortuneteller_link.go
+./fortuneteller_rule.go
+./fortuneteller_scan.go

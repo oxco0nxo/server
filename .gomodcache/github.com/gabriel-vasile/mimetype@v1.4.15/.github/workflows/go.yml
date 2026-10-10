@@ -1,0 +1,53 @@
+name: Tests and linters
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # for uploads to codecov
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+    - name: Install Go
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      with:
+        go-version: 'stable'
+    - name: Run linters
+      uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+      with:
+        version: "latest"
+    - name: Run tests
+      run: go test -race -shuffle=on ./...
+    # Run the quick tests many times to try and find flakyness.
+    - name: Run tests -count=1000
+      run: go test -count=1000 -shuffle=on -short ./...
+    # Testing on 32 bit architecture to find overflow problems as found in #731.
+    - name: Run tests on 32 bit architecture
+      run: GOARCH=386 go test -count=1 -shuffle=on ./...
+
+    # mimetype does not have many unit tests for the internal/magic package but
+    # the behaviour is tested at the root package. Bellow script accounts for that.
+    # https://github.com/golang/go/issues/6909#issuecomment-232878416
+    - name: Generate coverage
+      run: |
+        export PKGS=$(go list ./...)
+        export PKGS_DELIM=$(echo "$PKGS" | paste -sd "," -)
+        go list -f '{{if or (len .TestGoFiles) (len .XTestGoFiles)}}go test -covermode count -coverprofile {{.Name}}_{{len .Imports}}_{{len .Deps}}.coverprofile -coverpkg $PKGS_DELIM {{.ImportPath}}{{end}}' $PKGS | xargs -I {} bash -c {}
+        go install github.com/wadey/gocovmerge@b5bfa59ec0adc420475f97f89b58045c721d761c
+        gocovmerge `ls *.coverprofile` > cover.out
+        rm *.coverprofile
+    - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+      with:
+        fail_ci_if_error: true
+        files: cover.out
+        use_oidc: true

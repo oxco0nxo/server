@@ -1,0 +1,32 @@
+name: test mariadb
+on: 
+  push:
+    branches:
+      - main
+      - v1
+  pull_request:
+
+jobs:
+  lint:
+    name: test mariadb
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: test mariadb
+        env:
+          TEST_MYSQL_HOST: mariadb
+          TEST_MYSQL_CHARSET: utf8mb4
+          TEST_MYSQL_DBNAME: xorm_test
+          TEST_MYSQL_USERNAME: root
+          TEST_MYSQL_PASSWORD:
+        run: TEST_QUOTE_POLICY=reserved make test-mysql
+
+    services:
+      mariadb:
+        image: mariadb:10.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: xorm_test

@@ -1,0 +1,61 @@
+name: Pull Request Check
+
+on: [ pull_request ]
+
+jobs:
+  compliant:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check License Header
+        uses: apache/skywalking-eyes/header@v0.4.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Spell
+        uses: crate-ci/typos@master
+
+  staticcheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.20.x"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: reviewdog-${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            reviewdog-${{ runner.os }}-go-
+
+      - uses: reviewdog/action-staticcheck@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
+          reporter: github-pr-review
+          # Report results only on newly added/modified lines.
+          filter_mode: added
+          # Exit with 1 when new findings are reported.
+          fail_level: error
+          # Set staticcheck flags
+          staticcheck_flags: -checks=inherit,-SA1029
+
+  # not ready: unknown issue related to the env, skip for now
+  # lint:
+  #   runs-on: ubuntu-24.04
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v6
+  #       with:
+  #         go-version: "1.20.x"
+
+  #     - name: Golangci Lint
+  #       # https://golangci-lint.run/
+  #       uses: golangci/golangci-lint-action@v3
+  #       with:
+  #         version: latest

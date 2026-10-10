@@ -1,0 +1,23 @@
+name: release
+
+on: 
+  push:
+    tags:
+      - '*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Use Go Action  
+        id: use-go-action
+        uses: https://gitea.com/actions/release-action@main
+        with:
+          api_key: '${{secrets.RELEASE_TOKEN}}'

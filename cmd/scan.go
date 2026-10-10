@@ -110,7 +110,7 @@ var scanCmd = &cobra.Command{
 		// Load yaml-files
 		var noembed bool
 		if noembed, err = pf.GetBool("noembed"); err != nil {
-			cfg.Fatalf(err.Error())
+			cfg.Fatalf("%s", err.Error())
 			return
 		}
 		if !noembed {
@@ -127,7 +127,7 @@ var scanCmd = &cobra.Command{
 
 		var alias string
 		if alias, err = pf.GetString("game"); err != nil {
-			cfg.Fatalf(err.Error())
+			cfg.Fatalf("%s", err.Error())
 			return
 		}
 		var aid = util.ToID(alias)
@@ -162,7 +162,7 @@ var scanCmd = &cobra.Command{
 		}
 
 		if err = SetupParSheet(pf, &sp, gi); err != nil {
-			cfg.Fatalf(err.Error())
+			cfg.Fatalf("%s", err.Error())
 			return
 		}
 

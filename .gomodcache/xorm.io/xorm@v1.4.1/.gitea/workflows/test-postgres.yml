@@ -1,0 +1,55 @@
+name: test postgres
+on: 
+  push:
+    branches:
+      - main
+      - v1
+  pull_request:
+
+jobs:
+  lint:
+    name: test postgres
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: test postgres
+        env:
+          TEST_PGSQL_HOST: pgsql
+          TEST_PGSQL_DBNAME: xorm_test
+          TEST_PGSQL_USERNAME: postgres
+          TEST_PGSQL_PASSWORD: postgres
+        run: TEST_CACHE_ENABLE=true make test-postgres
+      - name: test postgres with schema
+        env:
+          TEST_PGSQL_HOST: pgsql
+          TEST_PGSQL_SCHEMA: xorm
+          TEST_PGSQL_DBNAME: xorm_test
+          TEST_PGSQL_USERNAME: postgres
+          TEST_PGSQL_PASSWORD: postgres
+        run: TEST_QUOTE_POLICY=reserved make test-postgres
+      - name: test pgx
+        env:
+          TEST_PGSQL_HOST: pgsql
+          TEST_PGSQL_DBNAME: xorm_test
+          TEST_PGSQL_USERNAME: postgres
+          TEST_PGSQL_PASSWORD: postgres
+        run: TEST_CACHE_ENABLE=true make test-pgx
+      - name: test pgx with schema
+        env:
+          TEST_PGSQL_HOST: pgsql
+          TEST_PGSQL_SCHEMA: xorm
+          TEST_PGSQL_DBNAME: xorm_test
+          TEST_PGSQL_USERNAME: postgres
+          TEST_PGSQL_PASSWORD: postgres
+        run: TEST_QUOTE_POLICY=reserved make test-pgx
+
+    services:
+      pgsql:
+        image: postgres:9.5
+        env:
+          POSTGRES_DB: xorm_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres

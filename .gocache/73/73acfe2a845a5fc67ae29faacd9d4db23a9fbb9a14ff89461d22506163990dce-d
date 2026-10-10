@@ -1,0 +1,9 @@
+./bruteforce.go
+./cascade.go
+./grid.go
+./lines.go
+./montecarlo.go
+./parsheet.go
+./reels.go
+./slot.go
+./stat.go

@@ -1,0 +1,8 @@
+./bool.go
+./conversion.go
+./float.go
+./int.go
+./interface.go
+./scanner.go
+./string.go
+./time.go

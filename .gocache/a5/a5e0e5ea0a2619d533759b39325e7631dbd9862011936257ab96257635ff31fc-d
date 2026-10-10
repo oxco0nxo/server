@@ -1,0 +1,9 @@
+./decode.go
+./decode_fused.go
+./doc.go
+./errors.go
+./localtime.go
+./marshaler.go
+./strict.go
+./types.go
+./unmarshaler.go

@@ -1,0 +1,40 @@
+name: Compatibility Test Windows-X64
+
+on: pull_request
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        go-version: [1.18.x, 1.21.x, 1.25.x, '1.27.0-rc.2']
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: main
+        run: |
+          set GOMAXPROCS=4
+          go test -race ./
+
+      - name: ast
+        run: |
+          set GOMAXPROCS=4
+          go test -race ./ast
+
+      - name: external
+        run: |
+          cd ./external_jsonlib_test
+          set GOMAXPROCS=4
+          go test -race ./...

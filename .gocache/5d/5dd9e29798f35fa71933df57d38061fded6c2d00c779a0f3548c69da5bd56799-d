@@ -1,0 +1,13 @@
+./dameng.go
+./dialect.go
+./driver.go
+./filter.go
+./gbase8s.go
+./mssql.go
+./mysql.go
+./oracle.go
+./postgres.go
+./quote.go
+./sqlite3.go
+./table_name.go
+./time.go

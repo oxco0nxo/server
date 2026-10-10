@@ -1,0 +1,6 @@
+
+
+
+
+struct knote;
+   struct klist { struct knote *slh_first; }  ;

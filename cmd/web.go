@@ -30,7 +30,7 @@ var webCmd = &cobra.Command{
 		var pf = cmd.Flags()
 
 		if debug, err = pf.GetBool("debug"); err != nil {
-			cfg.Fatalf(err.Error())
+			cfg.Fatalf("%s", err.Error())
 			return
 		}
 		if debug {

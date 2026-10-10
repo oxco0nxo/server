@@ -1,0 +1,45 @@
+name: test mssql
+on: 
+  push:
+    branches:
+      - main
+      - v1
+  pull_request:
+
+jobs:
+  test-mssql-collation:
+    name: test mssql with collation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: wait for mssql
+        run: |
+          for i in $(seq 1 60); do
+            if (echo > /dev/tcp/mssql2/1433) >/dev/null 2>&1; then
+              # SQL Server can accept TCP before it is fully ready for queries.
+              sleep 15
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "mssql2 did not become ready in time"
+          exit 1
+      - name: test mssql with collation
+        env:
+          TEST_MSSQL_HOST: mssql2
+          TEST_MSSQL_DBNAME: xorm_test
+          TEST_MSSQL_USERNAME: sa
+          TEST_MSSQL_PASSWORD: "yourStrong(!)Password"
+          TEST_MSSQL_COLLATION: SQL_Latin1_General_CP1_CS_AS
+        run: TEST_MSSQL_DEFAULT_VARCHAR=NVARCHAR TEST_MSSQL_DEFAULT_CHAR=NCHAR make test-mssql
+
+    services:
+      mssql2:
+        image: mcr.microsoft.com/mssql/server:latest
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: yourStrong(!)Password
+          MSSQL_PID: Standard

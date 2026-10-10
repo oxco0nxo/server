@@ -1,0 +1,49 @@
+name: testing
+
+on:
+  push:
+    branches: ['master']
+  pull_request:
+    branches: ['master']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go: ['1.24.x', '1.25.x', '1.26.x']
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out the source code
+        uses: actions/checkout@v7
+
+      - name: Set up Go ${{ matrix.go }}
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: Print environment
+        id: vars
+        run: |
+          printf 'Using Go at %s (version %s)\n' "$(which go)" "$(go version)"
+          printf "\n\nGo environment:\n\n"
+          go env
+          printf "\n\nSystem environment:\n\n"
+          env
+
+      - name: Run tests
+        run: GO_ARGS="-v -race -covermode=atomic -coverprofile=coverage.out" make tests
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        if: github.ref == 'refs/heads/master'
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+          verbose: true

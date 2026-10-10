@@ -17,9 +17,9 @@ import (
 	"github.com/slotopol/server/game"
 	"github.com/slotopol/server/util"
 
+	_ "github.com/glebarez/go-sqlite"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 	"gopkg.in/yaml.v3"
 	"xorm.io/xorm"
 	"xorm.io/xorm/names"
@@ -160,7 +160,7 @@ func InitStorage() (err error) {
 		} else {
 			fpath = Cfg.ClubSourceName
 		}
-		if cfg.XormStorage, err = xorm.NewEngine(Cfg.DriverName, fpath); err != nil {
+		if cfg.XormStorage, err = xorm.NewEngine("sqlite", fpath); err != nil {
 			return
 		}
 		if Cfg.ClubSourceName != ":memory:" {
@@ -296,7 +296,7 @@ func InitSpinlog() (err error) {
 		} else {
 			fpath = Cfg.SpinSourceName
 		}
-		if cfg.XormSpinlog, err = xorm.NewEngine(Cfg.DriverName, fpath); err != nil {
+		if cfg.XormSpinlog, err = xorm.NewEngine("sqlite", fpath); err != nil {
 			return
 		}
 		if Cfg.ClubSourceName != ":memory:" {

@@ -1,0 +1,4 @@
+./cashfarm_link.go
+./cashfarm_rule.go
+./cashfarm_scan.go
+./farm.go

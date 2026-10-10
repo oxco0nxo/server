@@ -1,0 +1,12 @@
+./auth.go
+./club.go
+./errcodes.go
+./game.go
+./keno.go
+./logic.go
+./props.go
+./routes.go
+./slot.go
+./sqlbatch.go
+./system.go
+./user.go

@@ -1,0 +1,59 @@
+
+name: Unit Test
+
+on: pull_request
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      id-token: write
+
+    strategy:
+      matrix:
+        go-version: [1.20.x, 1.22.x, 1.25.x, '1.27.0-rc.2']
+        runner_arch: [ubuntu-24.04-arm, macos-15]
+
+    runs-on: ${{ matrix.runner_arch }}
+    
+    steps:
+      - name: Clear repository
+        run: rm -fr $GITHUB_WORKSPACE && mkdir $GITHUB_WORKSPACE
+      
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ${{ github.workspace }}/go.sum
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Unit Test
+        run: |
+          GOMAXPROCS=4 go test -race -covermode=atomic -coverprofile=coverage.txt $(go list ./... | grep -v -E 'loader|jit|avx|x86|sse')
+
+      - name: Data Race
+        run: |
+          ./scripts/test_race.sh
+
+      - name: Issue Test
+        run: GOMAXPROCS=4 go test -race ./issue_test
+
+      - name: Generic Test
+        run: GOMAXPROCS=4 go test -race ./generic_test
+
+      - name: Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: ./coverage.txt
+          flags: arm,${{ matrix.runner_arch }}
+          fail_ci_if_error: false

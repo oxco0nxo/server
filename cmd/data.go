@@ -37,7 +37,7 @@ var dataCmd = &cobra.Command{
 		// Load yaml-files
 		var noembed bool
 		if noembed, err = pf.GetBool("noembed"); err != nil {
-			cfg.Fatalf(err.Error())
+			cfg.Fatalf("%s", err.Error())
 			return
 		}
 		if !noembed {
@@ -59,12 +59,12 @@ var dataCmd = &cobra.Command{
 
 		var routes bool
 		if routes, err = pf.GetBool("routes"); err != nil {
-			cfg.Fatalf(err.Error())
+			cfg.Fatalf("%s", err.Error())
 			return
 		}
 		var loaded bool
 		if loaded, err = pf.GetBool("loaded"); err != nil {
-			cfg.Fatalf(err.Error())
+			cfg.Fatalf("%s", err.Error())
 			return
 		}
 

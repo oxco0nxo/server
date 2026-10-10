@@ -1,0 +1,33 @@
+name: test cockroach
+on:
+  push:
+    branches:
+      - donttrigger # disabled for now
+      #- main
+      #- v1
+  #pull_request:
+
+jobs:
+  test-cockroach:
+    name: test cockroach
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: test cockroach
+        env:
+          TEST_COCKROACH_HOST: "cockroach:26257"
+          TEST_COCKROACH_DBNAME: xorm_test
+          TEST_COCKROACH_USERNAME: root
+          TEST_COCKROACH_PASSWORD:
+          IGNORE_TEST_DELETE_LIMIT: true
+        run: sleep 20 && make test-cockroach
+
+    services:
+      cockroach:
+        image: cockroachdb/cockroach:v19.2.4
+        cmd:
+          - 'start'
+          - '--insecure'

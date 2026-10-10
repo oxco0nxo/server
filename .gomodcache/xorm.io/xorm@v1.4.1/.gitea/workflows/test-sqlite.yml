@@ -1,0 +1,39 @@
+name: test sqlite
+on: 
+  push:
+    branches:
+      - main
+      - v1
+  pull_request:
+
+jobs:
+  test-sqlite:
+    name: unit test & test sqlite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: vet
+        run: make vet
+      - name: format check
+        run: make fmt-check
+      - name: lint
+        run: make lint
+      - name: unit test
+        run: make test
+      - name: test sqlite3
+        run: make test-sqlite3
+      - name: test sqlite3 with cache
+        run: TEST_CACHE_ENABLE=true make test-sqlite3
+  
+  govulncheck_job:
+    runs-on: ubuntu-latest
+    name: Run govulncheck
+    steps:
+      - id: govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: 'go.mod'
+          go-package: ./...

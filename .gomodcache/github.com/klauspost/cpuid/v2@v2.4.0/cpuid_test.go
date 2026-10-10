@@ -1,0 +1,584 @@
+// Copyright (c) 2015 Klaus Post, released under MIT License. See LICENSE file.
+
+package cpuid
+
+import (
+	"fmt"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+func TestLastID(t *testing.T) {
+	if lastID.String() != "lastID" {
+		t.Fatal("stringer not updated, run go generate")
+	}
+}
+
+func TestLastVendorID(t *testing.T) {
+	if lastVendor.String() != "lastVendor" {
+		t.Fatal("stringer not updated, run go generate")
+	}
+}
+
+// There is no real way to test a CPU identifier, since results will
+// obviously differ on each machine.
+func TestCPUID(t *testing.T) {
+	Detect()
+	n := maxFunctionID()
+	t.Logf("Max Function:0x%x", n)
+	n = maxExtendedFunction()
+	t.Logf("Max Extended Function:0x%x", n)
+	t.Log("VendorString:", CPU.VendorString)
+	t.Log("VendorID:", CPU.VendorID)
+	t.Log("Name:", CPU.BrandName)
+	t.Log("PhysicalCores:", CPU.PhysicalCores)
+	t.Log("ThreadsPerCore:", CPU.ThreadsPerCore)
+	t.Log("LogicalCores:", CPU.LogicalCores)
+	t.Log("Family", CPU.Family, "Model:", CPU.Model, "Stepping:", CPU.Stepping)
+	t.Log("Features:", strings.Join(CPU.FeatureSet(), ","))
+	t.Log("Cacheline bytes:", CPU.CacheLine)
+	t.Log("L1 Instruction Cache:", CPU.Cache.L1I, "bytes")
+	t.Log("L1 Data Cache:", CPU.Cache.L1D, "bytes")
+	t.Log("L2 Cache:", CPU.Cache.L2, "bytes")
+	t.Log("L3 Cache:", CPU.Cache.L3, "bytes")
+	t.Log("Hz:", CPU.Hz, "Hz")
+	t.Log("VM:", CPU.VM())
+	t.Log("BoostFreq:", CPU.BoostFreq, "Hz")
+}
+
+func TestExample(t *testing.T) {
+	Detect()
+	// Print basic CPU information:
+	fmt.Println("Name:", CPU.BrandName)
+	fmt.Println("PhysicalCores:", CPU.PhysicalCores)
+	fmt.Println("ThreadsPerCore:", CPU.ThreadsPerCore)
+	fmt.Println("LogicalCores:", CPU.LogicalCores)
+	fmt.Println("Family", CPU.Family, "Model:", CPU.Model, "Vendor ID:", CPU.VendorID)
+	fmt.Println("Features:", strings.Join(CPU.FeatureSet(), ","))
+	fmt.Println("Cacheline bytes:", CPU.CacheLine)
+	fmt.Println("L1 Data Cache:", CPU.Cache.L1D, "bytes")
+	fmt.Println("L1 Instruction Cache:", CPU.Cache.L1D, "bytes")
+	fmt.Println("L2 Cache:", CPU.Cache.L2, "bytes")
+	fmt.Println("L3 Cache:", CPU.Cache.L3, "bytes")
+	fmt.Println("Frequency", CPU.Hz, "hz")
+
+	// Test if we have these specific features:
+	if CPU.Supports(SSE, SSE2) {
+		fmt.Println("We have Streaming SIMD 2 Extensions")
+	}
+}
+func TestDumpCPUID(t *testing.T) {
+	n := int(maxFunctionID())
+	for i := 0; i <= n; i++ {
+		a, b, c, d := cpuidex(uint32(i), 0)
+		t.Logf("CPUID %08x: %08x-%08x-%08x-%08x", i, a, b, c, d)
+		ex := uint32(1)
+		for {
+			a2, b2, c2, d2 := cpuidex(uint32(i), ex)
+			if a2 == a && b2 == b && d2 == d || ex > 50 || a2 == 0 {
+				break
+			}
+			t.Logf("CPUID %08x: %08x-%08x-%08x-%08x", i, a2, b2, c2, d2)
+			a, b, c, d = a2, b2, c2, d2
+			ex++
+		}
+	}
+	n2 := maxExtendedFunction()
+	for i := uint32(0x80000000); i <= n2; i++ {
+		a, b, c, d := cpuid(i)
+		t.Logf("CPUID %08x: %08x-%08x-%08x-%08x", i, a, b, c, d)
+	}
+}
+
+func Example() {
+	// Print basic CPU information:
+	fmt.Println("Name:", CPU.BrandName)
+	fmt.Println("PhysicalCores:", CPU.PhysicalCores)
+	fmt.Println("ThreadsPerCore:", CPU.ThreadsPerCore)
+	fmt.Println("LogicalCores:", CPU.LogicalCores)
+	fmt.Println("Family", CPU.Family, "Model:", CPU.Model)
+	fmt.Println("Features:", CPU.FeatureSet())
+	fmt.Println("Cacheline bytes:", CPU.CacheLine)
+}
+
+func TestBrandNameZero(t *testing.T) {
+	if len(CPU.BrandName) > 0 {
+		// Cut out last byte
+		last := []byte(CPU.BrandName[len(CPU.BrandName)-1:])
+		if last[0] == 0 {
+			t.Fatal("last byte was zero")
+		} else if last[0] == 32 {
+			t.Fatal("whitespace wasn't trimmed")
+		}
+	}
+}
+
+// TestSGX tests SGX detection
+func TestSGX(t *testing.T) {
+	got := CPU.SGX.Available
+	expected := CPU.featureSet.inSet(SGX)
+	if got != expected {
+		t.Fatalf("SGX: expected %v, got %v", expected, got)
+	}
+	t.Log("SGX Support:", got)
+
+	if CPU.SGX.Available {
+		var total uint64 = 0
+		leaves := false
+		for _, s := range CPU.SGX.EPCSections {
+			t.Logf("SGX EPC section: base address 0x%x, size %v", s.BaseAddress, s.EPCSize)
+			total += s.EPCSize
+			leaves = true
+		}
+		if leaves && total == 0 {
+			t.Fatal("SGX enabled without any available EPC memory")
+		}
+	}
+}
+
+// TestAMDMemEncryption tests AMDMemEncryption detection
+func TestAMDMemEncryption(t *testing.T) {
+	got := CPU.AMDMemEncryption.Available
+	expected := CPU.featureSet.inSet(SME) || CPU.featureSet.inSet(SEV)
+	if got != expected {
+		t.Fatalf("AMDMemEncryption: expected %v, got %v", expected, got)
+	}
+	t.Log("AMDMemEncryption Support:", got)
+}
+
+func TestHas(t *testing.T) {
+	Detect()
+	defer Detect()
+	feats := CPU.FeatureSet()
+	for _, feat := range feats {
+		f := ParseFeature(feat)
+		if f == UNKNOWN {
+			t.Error("Got unknown feature:", feat)
+			continue
+		}
+		if !CPU.Has(f) {
+			t.Error("CPU.Has returned false, want true")
+		}
+		if !CPU.Supports(f) {
+			t.Error("CPU.Supports returned false, want true")
+		}
+		// Disable it.
+		CPU.Disable(f)
+		if CPU.Has(f) {
+			t.Error("CPU.Has returned true, want false")
+		}
+		if CPU.Supports(f) {
+			t.Error("CPU.Supports returned true, want false")
+		}
+		// Reenable
+		CPU.Enable(f)
+		if !CPU.Has(f) {
+			t.Error("CPU.Has returned false, want true")
+		}
+		if !CPU.Supports(f) {
+			t.Error("CPU.Supports returned false, want true")
+		}
+	}
+}
+
+// TestSGXLC tests SGX Launch Control detection
+func TestSGXLC(t *testing.T) {
+	got := CPU.SGX.LaunchControl
+	expected := CPU.featureSet.inSet(SGXLC)
+	if got != expected {
+		t.Fatalf("SGX: expected %v, got %v", expected, got)
+	}
+	t.Log("SGX Launch Control Support:", got)
+}
+
+// Test VM function
+func TestVM(t *testing.T) {
+	got := CPU.VM()
+	expected := CPU.featureSet.inSet(HYPERVISOR)
+	if got != expected {
+		t.Fatalf("TestVM: expected %v, got %v", expected, got)
+	}
+	t.Log("TestVM:", got)
+}
+
+// Test RTCounter function
+func TestRtCounter(t *testing.T) {
+	a := CPU.RTCounter()
+	b := CPU.RTCounter()
+	t.Log("CPU Counter:", a, b, b-a)
+}
+
+// Prints the value of Ia32TscAux()
+func TestIa32TscAux(t *testing.T) {
+	ecx := CPU.Ia32TscAux()
+	t.Logf("Ia32TscAux:0x%x\n", ecx)
+	if ecx != 0 {
+		chip := (ecx & 0xFFF000) >> 12
+		core := ecx & 0xFFF
+		t.Log("Likely chip, core:", chip, core)
+	}
+}
+
+func TestThreadsPerCoreNZ(t *testing.T) {
+	if CPU.ThreadsPerCore == 0 {
+		t.Fatal("threads per core is zero")
+	}
+}
+
+// Prints the value of LogicalCPU()
+func TestLogicalCPU(t *testing.T) {
+	t.Log("Currently executing on cpu:", CPU.LogicalCPU())
+}
+
+func TestMaxFunction(t *testing.T) {
+	expect := maxFunctionID()
+	if CPU.maxFunc != expect {
+		t.Fatal("Max function does not match, expected", expect, "but got", CPU.maxFunc)
+	}
+	expect = maxExtendedFunction()
+	if CPU.maxExFunc != expect {
+		t.Fatal("Max Extended function does not match, expected", expect, "but got", CPU.maxFunc)
+	}
+}
+
+// This example will calculate the chip/core number on Linux
+// Linux encodes numa id (<<12) and core id (8bit) into TSC_AUX.
+func ExampleCPUInfo_Ia32TscAux() {
+	ecx := CPU.Ia32TscAux()
+	if ecx == 0 {
+		fmt.Println("Unknown CPU ID")
+		return
+	}
+	chip := (ecx & 0xFFF000) >> 12
+	core := ecx & 0xFFF
+	fmt.Println("Chip, Core:", chip, core)
+}
+
+func TestCombineFeatures(t *testing.T) {
+	cpu := CPU
+	for i := range lastID {
+		if cpu.Has(i) != cpu.HasAll(CombineFeatures(i)) {
+			t.Errorf("id %d:%s mismatch", i, i.String())
+		}
+	}
+}
+
+// PMU test
+func TestParseLeaf0AH(t *testing.T) {
+	var fixedCounters3 flagSet
+	var fixedCounters4 flagSet
+	fixedCounters3.setIf(true, PMU_FIXEDCOUNTER_CYCLES, PMU_FIXEDCOUNTER_INSTRUCTIONS, PMU_FIXEDCOUNTER_REFCYCLES)
+	fixedCounters4.setIf(true, PMU_FIXEDCOUNTER_CYCLES, PMU_FIXEDCOUNTER_INSTRUCTIONS, PMU_FIXEDCOUNTER_REFCYCLES, PMU_FIXEDCOUNTER_TOPDOWN_SLOTS)
+	testCases := []struct {
+		name         string
+		eax          uint32
+		ebx          uint32
+		edx          uint32
+		wantPMU      PerformanceMonitoringInfo
+		wantFeatures flagSet
+	}{
+		{
+			name:    "eax_is_zero",
+			eax:     0,
+			ebx:     0,
+			edx:     0,
+			wantPMU: PerformanceMonitoringInfo{},
+		},
+		{
+			name: "v4, 3 fixed counters, 4 GP",
+			eax:  0x7300404,
+			ebx:  0x0,
+			edx:  0x603,
+			wantPMU: PerformanceMonitoringInfo{
+				VersionID:     4,
+				GPPMCWidth:    48,
+				NumGPCounters: 4,
+				NumFixedPMC:   3,
+				FixedPMCWidth: 48,
+			},
+			wantFeatures: fixedCounters3,
+		},
+		{
+			name: "v2, 4 fixed counters, 8 GP",
+			eax:  0x8300802,
+			ebx:  0x0,
+			edx:  0x604,
+			wantPMU: PerformanceMonitoringInfo{
+				VersionID:     2,
+				GPPMCWidth:    48,
+				NumGPCounters: 8,
+				NumFixedPMC:   4,
+				FixedPMCWidth: 48,
+			},
+			wantFeatures: fixedCounters4,
+		},
+	}
+	for _, tc := range testCases {
+		var cpu CPUInfo
+		tc.wantPMU.RawEAX = tc.eax
+		tc.wantPMU.RawEBX = tc.ebx
+		tc.wantPMU.RawEDX = tc.edx
+		got := parseLeaf0AH(&cpu, tc.eax, tc.ebx, tc.edx)
+		if !reflect.DeepEqual(tc.wantPMU, got) {
+			t.Fatalf("PMU mismatch want: %v got: %v", tc.wantPMU, got)
+		}
+		if !cpu.featureSet.hasSet(tc.wantFeatures) {
+			t.Fatalf("featureSet mismatch want: %v got: %v", tc.wantFeatures.Strings(), cpu.featureSet.Strings())
+		}
+	}
+
+}
+
+func BenchmarkFlags(b *testing.B) {
+	var a bool
+	var cpu = CPU
+	b.Run("ids", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			a = cpu.Supports(CMOV, CMPXCHG8, X87, FXSR, MMX, SYSCALL, SSE, SSE2, CX16, LAHF, POPCNT, SSE3, SSE4, SSE42, SSSE3, AVX, AVX2, BMI1, BMI2, F16C, FMA3, LZCNT, MOVBE, OSXSAVE) || a
+		}
+		_ = a
+	})
+	b.Run("features", func(b *testing.B) {
+		f := CombineFeatures(CMOV, CMPXCHG8, X87, FXSR, MMX, SYSCALL, SSE, SSE2, CX16, LAHF, POPCNT, SSE3, SSE4, SSE42, SSSE3, AVX, AVX2, BMI1, BMI2, F16C, FMA3, LZCNT, MOVBE, OSXSAVE)
+		for i := 0; i < b.N; i++ {
+			a = cpu.HasAll(f) || a
+		}
+		_ = a
+	})
+	b.Run("id", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			a = cpu.Has(CMOV) || a
+		}
+		_ = a
+	})
+	b.Run("feature", func(b *testing.B) {
+		f := CombineFeatures(CMOV)
+		for i := 0; i < b.N; i++ {
+			a = cpu.HasAll(f) || a
+		}
+		_ = a
+	})
+}
+
+func TestHasOneOf(t *testing.T) {
+	var c CPUInfo
+	c.featureSet.set(RV_F)
+	c.featureSet.set(RV_D)
+
+	if !c.HasOneOf(CombineFeatures(RV_F, RV_ZBA)) {
+		t.Error("HasOneOf should match when one feature is present")
+	}
+	if c.HasOneOf(CombineFeatures(RV_ZBA)) {
+		t.Error("HasOneOf should not match absent feature")
+	}
+	if !c.HasOneOf(CombineFeatures(RV_D)) {
+		t.Error("HasOneOf should match single present feature")
+	}
+	if c.HasOneOf(CombineFeatures(RV_V, RV_ZBA)) {
+		t.Error("HasOneOf should not match when no features are present")
+	}
+}
+
+func armCPU(ids ...FeatureID) CPUInfo {
+	var c CPUInfo
+	for _, id := range ids {
+		c.featureSet.set(id)
+	}
+	return c
+}
+
+// addFeats returns a fresh slice of base plus add, avoiding append aliasing.
+func addFeats(base []FeatureID, add ...FeatureID) []FeatureID {
+	out := make([]FeatureID, 0, len(base)+len(add))
+	out = append(out, base...)
+	return append(out, add...)
+}
+
+func TestARM64Level(t *testing.T) {
+	v80 := []FeatureID{FP, ASIMD}
+	v81 := addFeats(v80, ATOMICS, CRC32, ASIMDRDM)
+	v82 := addFeats(v81, DCPOP)
+	v83 := addFeats(v82, JSCVT, FCMA, LRCPC)
+	v84 := addFeats(v83, TS)
+	v85 := addFeats(v84, SB, SSBS, BTI, FRINTTS, FLAGM2, DCPODP)
+	v86 := addFeats(v85, BF16, I8MM)
+
+	tests := []struct {
+		name         string
+		ids          []FeatureID
+		major, minor int
+	}{
+		{"none", nil, 0, 0},
+		{"fp-without-asimd", []FeatureID{FP}, 0, 0},
+		{"v8.0", v80, 8, 0},
+		{"v8.1", v81, 8, 1},
+		{"v8.1-incomplete", addFeats(v80, ATOMICS, CRC32), 8, 0},
+		{"v8.2", v82, 8, 2},
+		{"v8.3", v83, 8, 3},
+		{"v8.4", v84, 8, 4},
+		{"v8.5", v85, 8, 5},
+		{"v8.5-without-ssbs-bti", addFeats(v84, SB, FRINTTS, FLAGM2, DCPODP), 8, 5},
+		{"v8.6", v86, 8, 6},
+		{"v9.0", addFeats(v85, SVE2), 9, 0},
+		{"v9.1", addFeats(v86, SVE2), 9, 1},
+		{"sve2-without-v8.5", addFeats(v80, SVE2), 8, 0},
+	}
+	for _, tc := range tests {
+		c := armCPU(tc.ids...)
+		if maj, min := c.ARM64Level(); maj != tc.major || min != tc.minor {
+			t.Errorf("%s: ARM64Level() = %d.%d, want %d.%d", tc.name, maj, min, tc.major, tc.minor)
+		}
+	}
+}
+
+func TestGOARM64(t *testing.T) {
+	v80 := []FeatureID{FP, ASIMD}
+	v83 := addFeats(v80, ATOMICS, CRC32, ASIMDRDM, DCPOP, JSCVT, FCMA, LRCPC)
+	v85 := addFeats(v83, TS, SB, SSBS, BTI, FRINTTS, FLAGM2, DCPODP)
+
+	tests := []struct {
+		name string
+		ids  []FeatureID
+		want string
+	}{
+		{"none", nil, ""},
+		{"v8.0", v80, "v8.0"},
+		{"v8.0+lse", addFeats(v80, ATOMICS), "v8.0,lse"},
+		{"v8.0+crypto", addFeats(v80, AESARM, PMULL, SHA1, SHA2), "v8.0,crypto"},
+		{"v8.0+lse+crypto", []FeatureID{FP, ASIMD, ATOMICS, AESARM, PMULL, SHA1, SHA2}, "v8.0,lse,crypto"},
+		{"v8.3", v83, "v8.3"},
+		{"v8.3+crypto", addFeats(v83, AESARM, PMULL, SHA1, SHA2), "v8.3,crypto"},
+		{"v9.0", addFeats(v85, SVE2), "v9.0"},
+	}
+	for _, tc := range tests {
+		c := armCPU(tc.ids...)
+		if got := c.GOARM64(); got != tc.want {
+			t.Errorf("%s: GOARM64() = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestParseISAString(t *testing.T) {
+	tests := []struct {
+		isa      string
+		features []FeatureID
+	}{
+		{
+			isa:      "rv64imafdc_zicsr_zifencei",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D},
+		},
+		{
+			isa:      "rv64gc",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D},
+		},
+		{
+			isa:      "rv64imafdc_zba_zbb_zbc_zbs",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZBA, RV_ZBB, RV_ZBC, RV_ZBS},
+		},
+		{
+			isa:      "rv64imafdcv",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_V},
+		},
+		{
+			isa:      "rv64imafdc_zicond_zihintpause",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZICOND, RV_ZIHINTPAUSE},
+		},
+		{
+			isa:      "rv64imafdc_zicbom_zicboz_zicbop",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZICBOM, RV_ZICBOZ, RV_ZICBOP},
+		},
+		{
+			isa:      "rv64imafdc_zfa_zfh_zfhmin",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZFA, RV_ZFH, RV_ZFHMIN},
+		},
+		{
+			isa:      "rv64imafdc_ztso_zacas",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZTSO, RV_ZACAS},
+		},
+		{
+			isa:      "rv64imafdc_zknd_zkne_zknh_zksed_zksh",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZKND, RV_ZKNE, RV_ZKNH, RV_ZKSED, RV_ZKSH},
+		},
+		{
+			isa:      "rv64imafdc_zvbb_zvbc_zvkg_zvkned_zvknhb_zvksed_zvksh",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZVBB, RV_ZVBC, RV_ZVKG, RV_ZVKNED, RV_ZVKNHB, RV_ZVKSED, RV_ZVKSH},
+		},
+		{
+			isa:      "rv64imafdc_zbkb_zbkc_zbkx",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZBKB, RV_ZBKC, RV_ZBKX},
+		},
+		{
+			isa:      "rv64imac",
+			features: []FeatureID{RV_IMA, RV_C},
+		},
+		{
+			isa:      "rv64ima",
+			features: []FeatureID{RV_IMA},
+		},
+		{
+			isa:      "rv64imafdc_zba_zbb_zbc_zbs_zicond_zihintpause_zicbom_zicboz_zicbop_zfa_zfh_zfhmin_ztso_zacas_zknd_zkne_zkr",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZBA, RV_ZBB, RV_ZBC, RV_ZBS, RV_ZICOND, RV_ZIHINTPAUSE, RV_ZICBOM, RV_ZICBOZ, RV_ZICBOP, RV_ZFA, RV_ZFH, RV_ZFHMIN, RV_ZTSO, RV_ZACAS, RV_ZKND, RV_ZKNE},
+		},
+		// Combined crypto suites auto-detection
+		{
+			isa:      "rv64imafdc_zbkb_zbkc_zbkx_zknd_zkne_zknh_zkt",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZBKB, RV_ZBKC, RV_ZBKX, RV_ZKND, RV_ZKNE, RV_ZKNH, RV_ZKT, RV_ZKN},
+		},
+		{
+			isa:      "rv64imafdc_zbkb_zbkc_zbkx_zksed_zksh_zkt",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZBKB, RV_ZBKC, RV_ZBKX, RV_ZKSED, RV_ZKSH, RV_ZKT, RV_ZKS},
+		},
+		{
+			isa:      "rv64imafdc_zvbb_zvbc_zvkb_zvkg_zvkned_zvknhb_zvkt",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZVBB, RV_ZVBC, RV_ZVKB, RV_ZVKG, RV_ZVKNED, RV_ZVKNHB, RV_ZVKT, RV_ZVKNG},
+		},
+		{
+			isa:      "rv64imafdc_zvbb_zvbc_zvkb_zvkg_zvksed_zvksh_zvkt",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZVBB, RV_ZVBC, RV_ZVKB, RV_ZVKG, RV_ZVKSED, RV_ZVKSH, RV_ZVKT, RV_ZVKSG},
+		},
+		// Bundle tokens directly in ISA string
+		{
+			isa:      "rv64imafdc_zkn",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZKN},
+		},
+		{
+			isa:      "rv64imafdc_zks",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZKS},
+		},
+		{
+			isa:      "rv64imafdc_zvkng",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZVKNG},
+		},
+		{
+			isa:      "rv64imafdc_zvksg",
+			features: []FeatureID{RV_IMA, RV_C, RV_F, RV_D, RV_ZVKSG},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.isa, func(t *testing.T) {
+			var c CPUInfo
+			parseISAString(&c, tt.isa)
+
+			var want flagSet
+			for _, feat := range tt.features {
+				want.set(feat)
+			}
+
+			for _, feat := range tt.features {
+				if !c.featureSet.inSet(feat) {
+					t.Errorf("missing %s", feat.String())
+				}
+			}
+
+			got := c.featureSet.nEnabled()
+			wantN := want.nEnabled()
+			if got != wantN {
+				gotSet := c.featureSet.Strings()
+				wantSet := want.Strings()
+				t.Errorf("got %d features %v, want %d %v", got, gotSet, wantN, wantSet)
+			}
+		})
+	}
+}
